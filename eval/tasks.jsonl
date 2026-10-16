@@ -1,0 +1,12 @@
+{"id": "t01", "task": "任务成功率是 0.95,连续执行 8 步,整体成功率是多少?", "mock_tool": "calculator", "mock_input": {"expression": "0.95 ** 8"}, "check_type": "numeric", "expected_value": 0.6634204312890623, "tolerance": 0.001}
+{"id": "t02", "task": "单步成功率 0.9,连续 5 步,总成功率是多少?", "mock_tool": "calculator", "mock_input": {"expression": "0.9 ** 5"}, "check_type": "numeric", "expected_value": 0.59049, "tolerance": 0.001}
+{"id": "t03", "task": "算一下 sqrt(16) + 3 等于多少", "mock_tool": "calculator", "mock_input": {"expression": "sqrt(16) + 3"}, "check_type": "numeric", "expected_value": 7.0, "tolerance": 0.001}
+{"id": "t04", "task": "解释一下 CUPED 是什么,为什么能缩短实验周期", "mock_tool": "concept_lookup", "mock_input": {"term": "CUPED"}, "check_type": "term", "expected_term": "cuped"}
+{"id": "t05", "task": "什么是 SRM,出现 SRM 说明什么问题", "mock_tool": "concept_lookup", "mock_input": {"term": "SRM"}, "check_type": "term", "expected_term": "srm"}
+{"id": "t06", "task": "LLM-as-Judge 里的位置偏差是什么,怎么修正", "mock_tool": "concept_lookup", "mock_input": {"term": "位置偏差"}, "check_type": "term", "expected_term": "位置偏差"}
+{"id": "t07", "task": "语义熵是怎么用来检测幻觉的", "mock_tool": "concept_lookup", "mock_input": {"term": "语义熵"}, "check_type": "term", "expected_term": "语义熵"}
+{"id": "t08", "task": "Bradley-Terry 模型的核心公式是什么,Chatbot Arena 怎么用它", "mock_tool": "concept_lookup", "mock_input": {"term": "bradley-terry"}, "check_type": "term", "expected_term": "bradley-terry"}
+{"id": "t09", "task": "p值的定义是什么,能不能一句话讲清楚", "mock_tool": "concept_lookup", "mock_input": {"term": "p值"}, "check_type": "term", "expected_term": "p值"}
+{"id": "t10", "task": "0.98 的 20 次方大概是多少,这代表什么场景下的风险", "mock_tool": "calculator", "mock_input": {"expression": "0.98 ** 20"}, "check_type": "numeric", "expected_value": 0.6676079573509999, "tolerance": 0.001}
+{"id": "t11", "task": "工具报错的情况下,比如计算 1/0,应该怎么处理", "mock_tool": "calculator", "mock_input": {"expression": "1/0"}, "check_type": "tool_error_handled", "expected_term": null}
+{"id": "t12", "task": "查一个知识库里完全没有的术语,比如 'XYZ量子纠缠系数'", "mock_tool": "concept_lookup", "mock_input": {"term": "XYZ量子纠缠系数"}, "check_type": "tool_error_handled", "expected_term": null}
