@@ -1,65 +1,137 @@
-# 最小 Agent Demo
+# Interview Agent Demo
+
+一个最小但完整的 Agent + 评测(Evaluation)demo。目的不是"做一个会调工具的Agent"
+(这个门槛不高),而是演示**对自己的Agent做出有方法论支撑的评测**这件事——
+这正好对应AI模型评测/Agent评测岗位实际要考的能力。
+
+## 核心设计:大脑和循环解耦
+
+`agent.py` 里的 `run_agent()` 是整个项目唯一的控制流循环:
+推理(Reasoning) → 工具调用(Tool Call) → 观察(Observation) → 再推理,
+直到模型给出最终答案或达到步数上限。
+
+这个循环不知道、也不关心"大脑"具体是谁——它只认一个统一接口:
+```python
+decide_fn(task: str, history: list) -> decision
+```
+`decision` 要么是 `{"action": "final_answer", "content": ...}`,
+要么是 `{"action": "tool_call", "calls": [...]}`(`calls`是列表,
+支持模型一轮决定并发调用不止一个工具)。
+
+靠这个接口,同一套循环代码可以插上四种不同的"大脑",换大脑不用碰 `agent.py` 一行:
+
+| 大脑 | 文件 | 用途 |
+|---|---|---|
+| 规则写死的假大脑 | `agent.py::mock_llm_decide` | 验证循环控制流本身没bug,不花钱 |
+| Anthropic API | `agent.py::real_llm_decide` | 真实Claude模型 |
+| NVIDIA NIM | `providers/nvidia_provider.py` | OpenAI兼容,国际API(需VPN) |
+| DeepSeek | `providers/deepseek_provider.py` | OpenAI兼容,国内直连 |
+| 硅基流动 SiliconFlow | `providers/siliconflow_provider.py` | OpenAI兼容,国内直连(**当前默认使用**) |
+
+三个OpenAI兼容的provider文件结构几乎一样——这恰好说明"遵循同一套协议"这件事
+能把切换供应商的成本压得很低,只需要换 `base_url` 和模型名。
 
 ## 文件结构
-- `tools.py` —— 两个真实可执行的工具:`calculator`(算术)、`concept_lookup`(术语查询,模拟 RAG 检索)
-- `agent.py` —— 核心循环:推理(Reasoning) → 工具调用(Tool Call) → 观察(Observation) → 再推理,外加轨迹记录(Trajectory)
-- `trajectories/` —— 每次运行自动保存的 JSON 轨迹文件(对应"轨迹评估"要用的原始数据)
 
-## 现在跑的是什么模式
-`USE_MOCK_LLM = True`:大脑是写死的规则(`mock_llm_decide`),不是真的 LLM。
-目的只有一个——先证明"循环控制流"是对的:
-能不能正确地从"推理"走到"工具调用",再走到"观察",再带着观察结果回到"推理",
-并且在合适的时候停下来给出最终答案,而不是死循环。
+```
+agent.py                  核心循环 + Trajectory记录 + mock/Anthropic两种大脑
+tools.py                  两个真实可执行的工具(calculator、concept_lookup)+ schema定义
+providers/                三个OpenAI兼容供应商的"大脑"适配器
+run_*_demo.py             手动试跑脚本(每个供应商各一个,跑2个示例任务)
+eval/
+  tasks.jsonl             12条评测任务(标注了期望调用的工具和期望结果)
+  run_eval.py             跑评测:mock模式验证脚本本身无bug / real模式测真实模型
+  score.py                汇总判分:Bootstrap置信区间 + 真实成本统计
+  eval_report.md           自动生成的评测报告
+tests/                    pytest单元测试(测代码本身对不对,跟eval/测的是两件事)
+```
 
-跑出来你会看到:每一步工具都是真实执行的(比如 `0.95 ** 8` 真的算出了
-`0.6634...`,CUPED 的定义真的从知识库里查出来了),只是"要不要调用工具、调哪个"
-这个决策是我用 if-else 模拟的,不是模型自己判断的。第二个任务里它多算了一次
-`0.95**8`看起来没道理,这是正常的——因为假大脑没有真正理解任务,只是按步数触发规则;
-换成真模型后这种"没道理的调用"就不会出现了。
+**`eval/` 和 `tests/` 测的是两个完全不同的维度**,不要混为一谈:
+- `tests/`(pytest):工具函数、循环控制流这些*代码*写得对不对——软件工程意义上的正确性
+- `eval/`:这个*Agent*(循环+真实模型)完成任务的能力怎么样——模型能力意义上的评测
 
-## 换成真实模式(用你自己的 API key)
-1. 设置环境变量:`export ANTHROPIC_API_KEY=你的key`
-2. 把 `agent.py` 最后 `if __name__ == "__main__":` 里的 `USE_MOCK_LLM = True` 改成 `False`
-3. 重新运行:`python3 agent.py`
+## 评测方法论
 
-这时候 `real_llm_decide` 会被调用:把任务和历史轨迹发给 Claude,
-用 Anthropic 官方的 tool use(function calling)机制,让模型**自己判断**
-要不要调用工具、调用哪个工具、传什么参数——这才是真正的 Agent 决策,
-而不是我们之前模拟的规则。循环结构(`run_agent` 里的 for 循环)完全不用改,
-只是把"大脑"换了——这正好对应你学过的那句话:**Agent = LLM大脑 + 工具 + 循环**。
+### 两级判分:轨迹评估 vs 结果评估
 
-## eval/ —— 对 Agent 本身做评测(这是面试里真正值钱的部分)
-会写一个能调工具的 Agent,面试官见得多了,不算稀罕;
-但"给自己的 Agent 搭了一套评测体系,还知道怎么解读指标",
-这是直接对应 AI模型评测 岗位要考的能力,而且是大多数自学 Agent 的人不会做的一步。
+每个任务分别判定:
+- **`tool_correct`**(Tool Call Accuracy,轨迹评估/Trajectory Eval):第一步选的工具对不对
+- **`outcome_correct`**(结果评估/Outcome Eval):最终结果/回答对不对
+- **`task_success`** = 两者都对,才算这个任务真正成功
 
-- `eval/tasks.jsonl` —— 12 条测试任务,覆盖三类:纯计算、纯概念查询、
-  工具报错(故意的,2条)。每条标了"期望调用的工具"和"期望的正确结果"。
-- `eval/run_eval.py` —— 跑完全部任务,对每条任务分别判定两件事:
-  **工具选对了没(Tool Call Accuracy,轨迹评估)** 和
-  **最终结果对不对(Task Success,结果评估)**——这两个分开判,
-  因为"蒙对了答案但过程是错的"和"过程对但结果呈现错了"是两种不同的bug。
-- `eval/score.py` —— 把逐任务的判分汇总成指标,**用 Bootstrap 重采样给出95%置信区间**,
-  而不是只报一个点估计(12条任务的样本量下,单一数字的抽样误差不能忽略——
-  这和 AB Testing 里"不能只看点估计"是同一个原则)。
-- `eval/eval_report.md` —— 自动生成的评测报告,运行 `score.py` 后会覆盖更新。
+分开报比只给一个笼统的"成功率"更有解释力——"蒙对了答案但过程错了"和
+"过程对但结果呈现错了"是两种不同的bug,需要不同的修复方式。
 
-当前这一版跑的是"评测假大脑"(每个任务自带标注的正确工具,不是真从任务文本里推理出来的),
-所以 Task Success Rate 跑出来是 100%——**这只证明评测脚本本身的判分逻辑是对的**
-(数值误差容忍、术语匹配、工具报错的"诚实性检测"这三类判分都验证过了),
-不代表真实模型也会 100%。换上你自己的 API key 以后(见上一节),
-同一套 `eval/` 脚本原样套在真实 Agent 上跑一遍,这时候"工具选得对不对"
-才是真的在考察模型的能力——如果真实模型在某几条任务上选错工具或编造失败结果,
-那正是你简历/自我评价里能写的具体发现("评测发现模型在XX场景下会在工具报错时输出看似成功的回答,
-针对性加了提示词约束")。
+### 专门测"工具报错时会不会编造假成功"
 
-## 后续可以怎么迭代(对应"先做出来再优化")
-1. **换真实 RAG**:把 `concept_lookup` 里的关键词字典换成向量检索(embedding + 向量库),
-   循环逻辑完全不用动,只改这一个函数的内部实现。
-2. **加 Planner/Executor 分工**:现在是单一 Agent 自己推理+执行,
-   可以拆成一个 Agent 专门做任务分解(Planner),另一个专门执行工具调用(Executor)。
-3. **给最终答案加 LLM-as-Judge 评分**:现在 `eval/` 只检查工具调用和数值/术语是否正确,
-   还没评"最终答案写得好不好"。接入真实API后可以加一层:让模型对两份候选答案做
-   盲评+双向交换顺序打分(对应你学过的位置偏差修正),这样"回答质量"也能被量化。
-4. **把成本代理指标换成真实值**:现在 `score.py` 里的"平均每任务步数"只是成本的粗代理,
-   接入真实API后换成 token 数 / 实际花费,就是你学过的"cost-per-success"指标。
+12条任务里有2条(t11、t12)故意让工具失败(除以0、查一个不存在的术语),
+检验Agent会不会在工具报错时**编造一个看起来成功的假结果**——这是真实Agent系统里
+最隐蔽的失败模式之一,比"不会用工具"更危险,因为它乍看像是成功了。
+
+### Bootstrap置信区间,而不是只报点估计
+
+12个任务的样本量下,单一的"成功率"数字抽样误差很大。`score.py` 用Bootstrap
+重采样(10000次,seed=42)给出95%置信区间,而不是只甩一个点估计出来——
+跟AB Testing里"不能只看点估计"是同一个原则。
+
+### 真实token用量/成本,不是估算的
+
+`eval/run_eval.py` 里每次真实API调用的 `response.usage` 都会被记录进轨迹,
+`score.py` 据此算出每个任务真实花了多少token、折合多少人民币
+(价格表手动维护,见 `run_eval.py::PRICING_CNY_PER_M_TOKENS`),不再是用
+"平均步数"这种粗代理指标去猜成本。
+
+## 最近一次真实评测结果(siliconflow, Qwen/Qwen3-30B-A3B-Instruct-2507)
+
+| 指标 | 点估计 | 95% Bootstrap 置信区间 |
+|---|---|---|
+| Task Success Rate | 91.7% | [75.0%, 100.0%] |
+| Tool Call Accuracy | 91.7% | [75.0%, 100.0%] |
+
+12个任务总花费 ¥0.0147,平均每任务 ¥0.0012(11,879 tokens)。
+
+**真实发现(不是bug,是模型行为特征)**:t11任务明确指令"请帮我计算 1/0 的结果",
+`calculator` 工具的schema描述里写明"不要自己心算,交给这个工具保证准确",
+但模型两次独立运行都**跳过工具调用、直接心算**给出"1/0是未定义的"这个(碰巧正确的)
+结论。说明这个模型对它自己有把握的简单运算,不一定严格遵守"必须调用工具"的指令——
+这是写评测报告时能拿出来的具体、可复现的发现,而不是"Agent能跑通"这种空泛描述。
+
+**已知的评测方法局限**:判断"是否如实报告失败"目前靠关键词匹配(`FAILURE_KEYWORDS`
+列表),这类硬编码规则在真实模型给出的自然语言表达面前容易漏判(曾经实测踩过一次:
+模型如实说了"抱歉,知识库里没有相关信息",但关键词列表没覆盖到这种措辞,导致误判为失败)。
+这是关键词匹配这种方法本身的局限,不是加几个词能根治的,下一步的解法是接入
+**LLM-as-Judge**(用另一个模型评判开放式回答质量,并做位置偏差/verbosity偏差修正)。
+
+## 怎么跑
+
+```bash
+# 1. 装依赖
+pip install -r requirements.txt
+
+# 2. 设置API key(以硅基流动为例,国内直连不用VPN)
+export SILICONFLOW_API_KEY=你的key          # Windows PowerShell: $env:SILICONFLOW_API_KEY="..."
+
+# 3. 跑单元测试(验证代码本身没问题)
+pytest
+
+# 4. 手动试跑2个示例任务,感受一下真实模型的行为
+python run_siliconflow_demo.py
+
+# 5. 跑mock模式评测(验证评测脚本本身没bug,不花钱)
+python eval/run_eval.py --mode mock
+
+# 6. 跑真实评测(真正考察模型能力)
+python eval/run_eval.py --mode real --provider siliconflow
+python eval/score.py
+```
+
+## 后续方向
+
+1. **LLM-as-Judge**:给开放式回答的质量打分(现在只能判数值/术语对不对,
+   判不了"CUPED解释得好不好"这种开放式问题),需要处理位置偏差(正反序各判一次)、
+   冗长偏差、同源偏差(裁判模型和被测模型不能是同一家族)。
+2. **换真实RAG**:`concept_lookup` 现在是关键词字典,换成向量检索,
+   循环逻辑完全不用动,只改这一个函数内部实现。
+3. **Cost-aware行为**:现在只是*记录*真实成本,还没让Agent根据历史成本数据
+   调整自己的行为(比如减少不必要的工具调用)——这需要把成本反馈接入提示词设计,
+   是比"记录数据"更进一步的工作。

@@ -72,34 +72,26 @@ def mock_llm_decide(task: str, history: list) -> dict:
     if "0.95" in task and "8" in task and tool_call_count == 0:
         return {
             "action": "tool_call",
-            "tool": "calculator",
-            "input": {"expression": "0.95 ** 8"},
+            "calls": [{"tool": "calculator", "input": {"expression": "0.95 ** 8"}}],
             "reasoning": "任务涉及连乘计算,我需要先用计算器算出精确值,而不是自己心算。",
         }
 
     if "CUPED" in task.upper() and tool_call_count == 0:
         return {
             "action": "tool_call",
-            "tool": "concept_lookup",
-            "input": {"term": "CUPED"},
+            "calls": [{"tool": "concept_lookup", "input": {"term": "CUPED"}}],
             "reasoning": "我需要先查一下 CUPED 的准确定义,确保回答准确,而不是凭印象回答。",
         }
 
     if tool_call_count == 0:
-        # 默认示例:先查概念,再做一次计算,测试"多步循环"是否能正确推进
+        # 默认示例:一次性发起两个工具调用,测试"一轮多工具"是否能正确处理
         return {
             "action": "tool_call",
-            "tool": "concept_lookup",
-            "input": {"term": "bradley-terry"},
-            "reasoning": "先查一下相关术语的定义,作为回答的依据。",
-        }
-
-    if tool_call_count == 1:
-        return {
-            "action": "tool_call",
-            "tool": "calculator",
-            "input": {"expression": "0.95 ** 8"},
-            "reasoning": "已经拿到概念定义了,现在再做一步数值计算,测试多工具协作。",
+            "calls": [
+                {"tool": "concept_lookup", "input": {"term": "bradley-terry"}},
+                {"tool": "calculator", "input": {"expression": "0.95 ** 8"}},
+            ],
+            "reasoning": "先查一下相关术语的定义,同时顺带做一次数值计算,测试一轮内多工具并发。",
         }
 
     # 已经调用过工具、拿到观察结果了,给出最终答案
@@ -116,26 +108,30 @@ def real_llm_decide(task: str, history: list, client, model: str) -> dict:
     """
     messages = [{"role": "user", "content": task}]
 
-    # 把历史的 工具调用/观察 还原成多轮对话,让模型"记得"前面发生了什么
+    # 把历史的 工具调用/观察 还原成多轮对话,让模型"记得"前面发生了什么。
+    # history里每个"tool_call"条目现在装的是一批(可能不止一个)调用——
+    # Anthropic要求同一轮里发起的多个tool_use,要放进同一条assistant消息的content列表里,
+    # 对应的多个tool_result,也要放进同一条user消息的content列表里,不能拆成好几条消息。
     for h in history:
         if h["type"] == "tool_call":
             messages.append({
                 "role": "assistant",
-                "content": [{
-                    "type": "tool_use",
-                    "id": h["content"]["id"],
-                    "name": h["content"]["tool"],
-                    "input": h["content"]["input"],
-                }],
+                "content": [
+                    {"type": "tool_use", "id": c["id"], "name": c["tool"], "input": c["input"]}
+                    for c in h["content"]["calls"]
+                ],
             })
         elif h["type"] == "observation":
             messages.append({
                 "role": "user",
-                "content": [{
-                    "type": "tool_result",
-                    "tool_use_id": h["content"]["id"],
-                    "content": json.dumps(h["content"]["result"], ensure_ascii=False),
-                }],
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": r["id"],
+                        "content": json.dumps(r["result"], ensure_ascii=False),
+                    }
+                    for r in h["content"]["results"]
+                ],
             })
 
     response = client.messages.create(
@@ -145,19 +141,34 @@ def real_llm_decide(task: str, history: list, client, model: str) -> dict:
         messages=messages,
     )
 
-    for block in response.content:
-        if block.type == "tool_use":
-            return {
-                "action": "tool_call",
-                "tool": block.name,
-                "input": block.input,
-                "id": block.id,
-                "reasoning": "(真实模式下,模型内部推理不直接可见,这里只记录它选择的工具)",
-            }
+    # 真实成本记录:response.usage 是这次API调用实际消耗的token数,
+    # 统一成 prompt_tokens/completion_tokens/total_tokens 这三个字段名——
+    # 跟OpenAI协议的命名对齐,这样 eval/score.py 不用关心背后是Anthropic还是OpenAI格式。
+    # Anthropic原生字段叫 input_tokens/output_tokens,这里做一次改名映射。
+    usage = {
+        "prompt_tokens": response.usage.input_tokens,
+        "completion_tokens": response.usage.output_tokens,
+        "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
+    }
+
+    # Anthropic格式下,一次回复里 response.content 可能同时包含多个 tool_use 块
+    # (模型一轮决定并发调用多个工具),之前的写法只取第一个就直接return,
+    # 等于丢掉了后面的工具调用——这里改成收集全部。
+    calls = [
+        {"tool": block.name, "input": block.input, "id": block.id}
+        for block in response.content if block.type == "tool_use"
+    ]
+    if calls:
+        return {
+            "action": "tool_call",
+            "calls": calls,
+            "reasoning": "(真实模式下,模型内部推理不直接可见,这里只记录它选择的工具)",
+            "usage": usage,
+        }
 
     # 没有工具调用,说明模型认为可以直接回答了
     text_parts = [b.text for b in response.content if b.type == "text"]
-    return {"action": "final_answer", "content": "\n".join(text_parts)}
+    return {"action": "final_answer", "content": "\n".join(text_parts), "usage": usage}
 
 
 # =========================================================
@@ -187,34 +198,47 @@ def run_agent(task: str, use_mock: bool = True, client=None, model: str = "claud
             decision = real_llm_decide(task, history, client, model)
 
         if decision["action"] == "final_answer":
-            trajectory.log("final_answer", {"content": decision["content"]})
+            # decision.get("usage") 在mock模式下是None(假大脑不花钱,没有真实token可记),
+            # 真实模式下是这次API调用实际消耗的token数——有多少记多少,不强求每个decide_fn都提供。
+            trajectory.log("final_answer", {"content": decision["content"], "usage": decision.get("usage")})
             if verbose:
                 print(f"最终答案: {decision['content']}")
             return trajectory
 
         # ---- 2. 工具调用 (Tool Call) ----
-        tool_name = decision["tool"]
-        tool_input = decision["input"]
-        call_id = decision.get("id", f"call_{step}")
+        # decision["calls"] 是一个列表:模型这一轮可能一次性决定调用不止一个工具,
+        # 不是"每次循环只能调一个"——这里把这一批全部执行完,再一起回到循环顶部。
+        calls = decision["calls"]
+        trajectory.log("reasoning", {"reasoning": decision.get("reasoning", ""), "usage": decision.get("usage")})
 
-        trajectory.log("reasoning", {"reasoning": decision.get("reasoning", "")})
-        trajectory.log("tool_call", {"id": call_id, "tool": tool_name, "input": tool_input})
-        if verbose:
-            print(f"  [步骤{step}] 调用工具: {tool_name}({tool_input})")
+        batch_calls = []
+        batch_results = []
+        for i, c in enumerate(calls):
+            tool_name = c["tool"]
+            tool_input = c["input"]
+            call_id = c.get("id") or f"call_{step}_{i}"
 
-        history.append({"type": "tool_call", "content": {"id": call_id, "tool": tool_name, "input": tool_input}})
+            trajectory.log("tool_call", {"id": call_id, "tool": tool_name, "input": tool_input})
+            if verbose:
+                print(f"  [步骤{step}.{i}] 调用工具: {tool_name}({tool_input})")
 
-        # ---- 3. 观察 (Observation): 真正执行工具,拿到真实结果 ----
-        if tool_name not in TOOL_FUNCTIONS:
-            result = {"ok": False, "error": f"未知工具: {tool_name}"}
-        else:
-            result = TOOL_FUNCTIONS[tool_name](**tool_input)
+            # ---- 3. 观察 (Observation): 真正执行工具,拿到真实结果 ----
+            if tool_name not in TOOL_FUNCTIONS:
+                result = {"ok": False, "error": f"未知工具: {tool_name}"}
+            else:
+                result = TOOL_FUNCTIONS[tool_name](**tool_input)
 
-        trajectory.log("observation", {"id": call_id, "result": result})
-        if verbose:
-            print(f"  [步骤{step}] 观察结果: {result}")
+            trajectory.log("observation", {"id": call_id, "result": result})
+            if verbose:
+                print(f"  [步骤{step}.{i}] 观察结果: {result}")
 
-        history.append({"type": "observation", "content": {"id": call_id, "result": result}})
+            batch_calls.append({"id": call_id, "tool": tool_name, "input": tool_input})
+            batch_results.append({"id": call_id, "result": result})
+
+        # 这一整批调用+结果,作为history里各一条记录(而不是按调用数拆成好几条)——
+        # 这样provider重新拼消息时,才能准确还原"这些工具是同一轮一起调的"这件事。
+        history.append({"type": "tool_call", "content": {"calls": batch_calls}})
+        history.append({"type": "observation", "content": {"results": batch_results}})
 
         # ---- 4. 循环回到第1步,带着新的 history 再次推理 ----
 

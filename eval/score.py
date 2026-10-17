@@ -11,8 +11,47 @@ import json
 import os
 import random
 
+# 价格表跟 run_eval.py 共用同一份,避免两个文件各写一份、改一处忘改另一处。
+from run_eval import PRICING_CNY_PER_M_TOKENS
+
 N_BOOTSTRAP = 10000
 random.seed(42)
+
+
+def sum_usage(trajectory: dict) -> dict:
+    """
+    把一条轨迹里散落在各个 reasoning/final_answer 步骤里的 usage 字段
+    (每次真实API调用产生一次)加总成这个任务总共花了多少token。
+    mock模式下 usage 全是 None,加总结果就是全0——不报错,只是没有真实成本可言。
+    """
+    prompt_tokens = 0
+    completion_tokens = 0
+    has_real_usage = False
+    for s in trajectory["steps"]:
+        if s["type"] in ("reasoning", "final_answer"):
+            usage = s["content"].get("usage")
+            if usage:
+                has_real_usage = True
+                prompt_tokens += usage["prompt_tokens"]
+                completion_tokens += usage["completion_tokens"]
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "has_real_usage": has_real_usage,
+    }
+
+
+def cost_cny(usage: dict, provider: str) -> float:
+    """
+    按 provider 对应的单价(人民币/百万token),把token用量换算成真实花费。
+    provider 没有价格表(比如None,或者nvidia没公开人民币价)就返回None,
+    表示"这笔成本算不出来",不是"成本是0"——两者不能混为一谈。
+    """
+    pricing = PRICING_CNY_PER_M_TOKENS.get(provider) if provider else None
+    if pricing is None or not usage["has_real_usage"]:
+        return None
+    return (usage["prompt_tokens"] / 1_000_000 * pricing["input"]
+            + usage["completion_tokens"] / 1_000_000 * pricing["output"])
 
 
 def load_results(path: str) -> list:
@@ -57,8 +96,17 @@ def main():
     task_ci = bootstrap_ci(task_successes)
     tool_ci = bootstrap_ci(tool_successes)
 
-    # 平均每个任务的步数,作为"成本"的代理指标(真实API接入后换成token数/花费)
+    # 平均每个任务的步数——跟真实成本不是一回事,但能看出"同一个答案绕了几圈"
     avg_steps = sum(len(r["trajectory"]["steps"]) for r in rows) / n
+
+    # 真实token用量/成本:从轨迹里每次真实API调用的usage字段加总而来,
+    # 不是靠步数估算的——mock模式下没有真实usage,这里会是 None。
+    usages = [sum_usage(r["trajectory"]) for r in rows]
+    costs = [cost_cny(u, r.get("provider")) for u, r in zip(usages, rows)]
+    known_costs = [c for c in costs if c is not None]
+    total_tokens = sum(u["prompt_tokens"] + u["completion_tokens"] for u in usages)
+    avg_prompt_tokens = sum(u["prompt_tokens"] for u in usages) / n
+    avg_completion_tokens = sum(u["completion_tokens"] for u in usages) / n
 
     failed = [r for r in rows if not r["task_success"]]
 
@@ -72,7 +120,21 @@ def main():
                   f"[{task_ci[0]:.1%}, {task_ci[1]:.1%}] |")
     lines.append(f"| Tool Call Accuracy(轨迹级,工具选对没) | {tool_accuracy:.1%} | "
                   f"[{tool_ci[0]:.1%}, {tool_ci[1]:.1%}] |")
-    lines.append(f"\n平均每任务步数(成本代理指标): {avg_steps:.2f}\n")
+    lines.append(f"\n平均每任务步数: {avg_steps:.2f}")
+
+    if known_costs:
+        avg_cost = sum(known_costs) / len(known_costs)
+        total_cost = sum(known_costs)
+        lines.append(f"\n## 真实成本(基于实际token用量,非估算)\n")
+        lines.append(f"- 总token用量: {total_tokens:,} (输入 {sum(u['prompt_tokens'] for u in usages):,} "
+                      f"+ 输出 {sum(u['completion_tokens'] for u in usages):,})")
+        lines.append(f"- 平均每任务token用量: 输入 {avg_prompt_tokens:.0f} / 输出 {avg_completion_tokens:.0f}")
+        lines.append(f"- 本次评测({len(known_costs)}个任务有真实计费数据)总花费: ¥{total_cost:.4f}")
+        lines.append(f"- 平均每任务花费: ¥{avg_cost:.4f}")
+        lines.append("\n(价格表见 `eval/run_eval.py` 里的 `PRICING_CNY_PER_M_TOKENS`,"
+                      "是手动维护的快照价格,不是实时查价——仅供数量级参考,不是精确账单。)\n")
+    else:
+        lines.append("\n(这次跑的是mock模式,或者该provider没有登记价格,没有真实token用量可统计。)\n")
 
     lines.append("## 方法论说明\n")
     lines.append("- **区分结果评估(Outcome Eval)和轨迹评估(Trajectory Eval)**:"

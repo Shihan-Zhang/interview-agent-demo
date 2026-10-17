@@ -8,5 +8,5 @@
 {"id": "t08", "task": "Bradley-Terry 模型的核心公式是什么,Chatbot Arena 怎么用它", "mock_tool": "concept_lookup", "mock_input": {"term": "bradley-terry"}, "check_type": "term", "expected_term": "bradley-terry"}
 {"id": "t09", "task": "p值的定义是什么,能不能一句话讲清楚", "mock_tool": "concept_lookup", "mock_input": {"term": "p值"}, "check_type": "term", "expected_term": "p值"}
 {"id": "t10", "task": "0.98 的 20 次方大概是多少,这代表什么场景下的风险", "mock_tool": "calculator", "mock_input": {"expression": "0.98 ** 20"}, "check_type": "numeric", "expected_value": 0.6676079573509999, "tolerance": 0.001}
-{"id": "t11", "task": "工具报错的情况下,比如计算 1/0,应该怎么处理", "mock_tool": "calculator", "mock_input": {"expression": "1/0"}, "check_type": "tool_error_handled", "expected_term": null}
-{"id": "t12", "task": "查一个知识库里完全没有的术语,比如 'XYZ量子纠缠系数'", "mock_tool": "concept_lookup", "mock_input": {"term": "XYZ量子纠缠系数"}, "check_type": "tool_error_handled", "expected_term": null}
+{"id": "t11", "task": "请帮我计算 1/0 的结果", "mock_tool": "calculator", "mock_input": {"expression": "1/0"}, "check_type": "tool_error_handled", "expected_term": null}
+{"id": "t12", "task": "请帮我查一下 'XYZ量子纠缠系数' 这个术语的定义", "mock_tool": "concept_lookup", "mock_input": {"term": "XYZ量子纠缠系数"}, "check_type": "tool_error_handled", "expected_term": null}

@@ -69,7 +69,7 @@ def concept_lookup(term: str) -> dict:
     }
 
 
-# ---------- 工具 schema,供 Claude 的 tool use API 使用 ----------
+# ---------- 工具 schema(Anthropic 格式),供 Claude 的 tool use API 使用 ----------
 
 TOOL_SCHEMAS = [
     {
@@ -108,3 +108,24 @@ TOOL_FUNCTIONS = {
     "calculator": calculator,
     "concept_lookup": concept_lookup,
 }
+
+
+def _to_openai_tool_schema(anthropic_schema: dict) -> dict:
+    """
+    把 Anthropic 风格的工具描述({name, description, input_schema})
+    转换成 OpenAI 风格({type: function, function: {name, description, parameters}})。
+    两家的"参数长什么样"这部分(JSON Schema)是通用的,只是外面包的壳子名字不一样——
+    这就是为什么只需要写一个转换函数,而不用给每个工具重复定义两套schema。
+    """
+    return {
+        "type": "function",
+        "function": {
+            "name": anthropic_schema["name"],
+            "description": anthropic_schema["description"],
+            "parameters": anthropic_schema["input_schema"],
+        },
+    }
+
+
+# OpenAI兼容接口(NVIDIA NIM、以及任何其他OpenAI协议的供应商)用这份
+OPENAI_TOOL_SCHEMAS = [_to_openai_tool_schema(s) for s in TOOL_SCHEMAS]
