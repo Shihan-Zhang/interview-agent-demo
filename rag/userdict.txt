@@ -1,0 +1,24 @@
+# BM25 自定义词典:专有名词整体切出,避免被拆碎后 IDF 变低。一行一个。
+Qwen3-4B-Instruct-2507
+Qwen3-4B-Thinking-2507
+qwen3.5
+McNemar
+bootstrap
+KV cache
+LLM-as-Judge
+RoPE
+RMSNorm
+SwiGLU
+BFCL
+RAG
+BM25
+RRF
+BGE-M3
+Recall@k
+pass@k
+num_ctx
+检验功效
+最小可检出差距
+操纵检查
+数据血缘
+忠实度
