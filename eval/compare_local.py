@@ -39,9 +39,13 @@ CONFIGS = [
      "sampling": {"temperature": 0.6, "top_p": 0.95, "top_k": 20}},
     {"name": "qwen3-nothink",  "model": "qwen3:4b",   "think": False,
      "sampling": {"temperature": 0.7, "top_p": 0.8, "top_k": 20}},
-    # 修正版:第一版的 qwen3-nothink 只设了 think=False,实测思考内容泄漏进了回答正文(36/36),
-    # 操纵检查不通过。这里再加上 Qwen3 官方的软开关 /no_think。
+    # 修正版 v2:think=False 加 /no_think 软开关,仍然 12/12 泄漏(操纵检查不通过)。
     {"name": "qwen3-nothink-v2", "model": "qwen3:4b", "think": False, "user_suffix": " /no_think",
+     "sampling": {"temperature": 0.7, "top_p": 0.8, "top_k": 20}},
+    # 根因:Ollama 的 qwen3:4b 是 Qwen3-4B-Thinking-2507(只有思考模式,上下文 262144,
+    # ollama show 里 thinking levels 只有 true),开关对它无效。
+    # 不思考的对照应该用另一个模型文件 Qwen3-4B-Instruct-2507。
+    {"name": "qwen3i-nothink", "model": "qwen3:4b-instruct", "think": False,
      "sampling": {"temperature": 0.7, "top_p": 0.8, "top_k": 20}},
     {"name": "qwen35-think",   "model": "qwen3.5:4b", "think": True,
      "sampling": {"temperature": 1.0, "top_p": 0.95, "top_k": 20, "presence_penalty": 1.5}},
@@ -127,7 +131,8 @@ def main():
 
     tasks = load_tasks(os.path.join(ROOT, "eval", "tasks.jsonl"))
     configs = CONFIGS if args.configs == "all" else [c for c in CONFIGS if c["name"] in args.configs.split(",")]
-    finished = done_keys()
+    names = {c["name"] for c in configs}
+    finished = {k for k in done_keys() if k[0] in names and k[2] <= args.runs}
     total = len(configs) * args.runs * len(tasks)
     print(f"共 {total} 次运行;已完成 {len(finished)} 次,会自动跳过。")
     t_start, n_done_now = time.time(), 0

@@ -8,8 +8,12 @@
 统计:每题多次运行时,先算每道题的平均成功率,再按题 bootstrap 求置信区间;
 两个配置的比较用按题配对 bootstrap 和符号翻转检验(同一道题的多次结果绑在一起)。
 
-事先写下的主要比较:qwen35-nothink vs qwen3-nothink-v2
-(原定与 qwen3-nothink 比较,但该配置操纵检查不通过,改用修正后的 v2;此改动在看到 v2 结果之前做出)。
+事先写下的主要比较:qwen35-nothink vs qwen3i-nothink。
+变更记录(都发生在看到对应配置的成功率之前,原因都是操纵检查不通过):
+1. 原定对照 qwen3-nothink:think=False 后思考内容泄漏进正文,36/36 无效;
+2. 改为 qwen3-nothink-v2(再加 /no_think):仍然 12/12 无效;
+3. 查明 qwen3:4b 是只有思考模式的 Qwen3-4B-Thinking-2507,改用 Qwen3-4B-Instruct-2507(qwen3i-nothink)。
+因此 qwen3-think 与 qwen3i-nothink 的差别是两个不同的模型文件,不只是同一模型的思考开关。
 """
 
 import argparse
@@ -30,11 +34,11 @@ META = os.path.join(ROOT, "eval", "results", "local_compare_meta.jsonl")
 REPORT = os.path.join(ROOT, "eval", "results", "local_compare_report.md")
 AUDIT = os.path.join(ROOT, "eval", "results", "pass_audit.md")
 
-ORDER = ["qwen3-think", "qwen3-nothink", "qwen3-nothink-v2", "qwen35-think", "qwen35-nothink"]
+ORDER = ["qwen3-think", "qwen3-nothink", "qwen3-nothink-v2", "qwen3i-nothink", "qwen35-think", "qwen35-nothink"]
 B, SEED = 10000, 42
 COMPARISONS = [
-    ("qwen35-nothink", "qwen3-nothink-v2", True),
-    ("qwen3-think", "qwen3-nothink-v2", False),
+    ("qwen35-nothink", "qwen3i-nothink", True),
+    ("qwen3-think", "qwen3i-nothink", False),
     ("qwen35-think", "qwen35-nothink", False),
     ("qwen35-think", "qwen3-think", False),
 ]
