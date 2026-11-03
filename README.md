@@ -114,7 +114,37 @@ python eval/compare_local.py         # 约 1 小时;可先用 --runs 1 试跑
 python eval/summarize_local.py       # 生成 eval/results/local_compare_report.md
 ```
 
-事先定好的主要比较:qwen35-nothink vs qwen3-nothink;思考模式规则:成功率提升不显著且耗时超过 2 倍,则默认关闭。
+主要比较:qwen35-nothink vs qwen3i-nothink(qwen3:4b 是只会思考的 Thinking-2507,关思考的操纵检查 36/36 失败,
+不思考对照改用 qwen3:4b-instruct)。思考模式规则:成功率提升不显著且耗时超过 2 倍,则默认关闭。
+
+## 函数调用评测(BFCL v4 子集,150 题)
+
+`eval/fc/`:从 [BFCL v4](https://github.com/ShishirPatil/gorilla/tree/main/berkeley-function-call-leaderboard)(Apache-2.0)
+分层抽样 150 题(非 live 50 + 真实用户 live 100,含 35 道"不该调用"题),简化版 AST 匹配判分,不执行函数。
+
+```bash
+python eval/fc/run_fc.py            # 2 个配置 × 150 题,约 20 分钟;中断后重跑会跳过已完成的
+python eval/fc/summarize_fc.py      # 用当前判分器对存下的调用重新判分,生成报告
+python eval/fc/inspect_fc.py [题号]  # 列出报错/截断行,或查看单题的完整 Trace
+```
+
+| 配置 | 准确率 [95% CI] | 非 live(50) | live(100) | 每题耗时 | 输出 token |
+|---|---|---|---|---|---|
+| qwen3i-nothink | 84.0% [77.3%, 89.0%] | 48/50 | 78/100 | 3.3 s | 72 |
+| qwen35-nothink | 79.3% [72.2%, 85.0%] | 47/50 | 72/100 | 3.8 s | 95 |
+
+主要比较(精确 McNemar,150 题):不一致 9 : 16,p = 0.23,差异不显著。不一致比例约 17%,
+150 题能检出的最小差距约 9.5 个百分点;要以 80% 功效检出 5 个百分点约需 480 题。
+暂定默认 qwen3i-nothink:准确率打平的前提下,它更快、更省 token,且两份评测方向一致。
+
+评测可信度上踩过的坑(每一个都加了单元测试或自动检查):
+- **数据污染**:假服务器试跑的结果被提交,续跑逻辑把它当成已完成 → 每行记录 run_id / Ollama 版本,汇总时标出耗时异常的行;
+- **判分器 bug**:嵌套字典的标准答案没有逐层展开,4 个配置在同一题全错 → 自洽检查测试(每道题的标准答案必须通过判分器);
+- **截断被判对**:思考耗尽 2048 token、来不及调用,被"不调用即正确"规则判对 → 输出截断一律判失败(与官方做法不同,已注明);
+- **静默截断输入**:长函数定义超过 num_ctx 时 Ollama 不报错 → num_ctx 提高到 8192,并检查输入 token 数。
+
+主要失败类型:自己编造用户没给的参数值(两个模型都常见)、格式不符合函数说明、漏调用、
+不该调用时调用(qwen3.5 4 次 vs qwen3i 1 次)、一次重复调用 43 次的循环。
 
 ## 怎么跑
 
