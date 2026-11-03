@@ -13,7 +13,7 @@
 数据质量检查(任何一项非零都要先查清楚再看结论):
 - 来源可疑:耗时 < 0.05 s(真实调用至少约 1 秒,见 2026-11-03 假数据事故);
 - 可能被截断:输入 token 数达到 num_ctx 的 95%(Ollama 超出上下文时静默截断);
-- 输出被截断:done_reason == "length"(达到 num_predict 上限)。
+- 输出被截断:done_reason == "length"(达到 num_predict 上限),这类行一律判失败。
 
 用法:python eval/fc/summarize_fc.py [--data eval/datasets/bfcl_subset_v2.jsonl]
 """
@@ -86,7 +86,14 @@ def main():
             if u.get("prompt_tokens", 0) >= 0.95 * r["options"]["num_ctx"]:
                 truncated_in += 1
             if u.get("done_reason") == "length":
+                # 输出达到 num_predict 上限:模型没有在预算内完成,一律判失败。
+                # 不这样做的话,思考耗尽预算、没来得及调用的 irrelevance 题会被"不调用"规则判对
+                #(qwen3-think 的 irrelevance_18/30),而循环调用 43 次的题判错原因也不清楚。
+                # 与 BFCL 官方不同:官方对 irrelevance 只看输出能否解析成调用。
                 truncated_out += 1
+                r["success"] = False
+                r["reason"] = (f"输出截断:{u.get('completion_tokens')} token 内未完成"
+                               f"(思考 {u.get('thinking_chars', 0)} 字符,调用 {len(r.get('calls') or [])} 次)")
         if r.get("wall_s", 1) < 0.05:
             suspicious += 1
 
@@ -101,7 +108,7 @@ def main():
          f"- 重新判分改变的行:{changed}",
          f"- 来源可疑(耗时 < 0.05 s):{suspicious}",
          f"- 输入可能被截断(≥ 95% num_ctx):{truncated_in}",
-         f"- 输出被截断(done_reason = length):{truncated_out}\n",
+         f"- 输出被截断(done_reason = length,一律判失败):{truncated_out}\n",
          "## 各配置总体结果\n",
          "| 配置 | 完成题数 | 有效 | 准确率 [95% CI] | 每题耗时 | 每题输出 token |",
          "|---|---|---|---|---|---|"]
