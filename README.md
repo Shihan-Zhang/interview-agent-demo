@@ -102,6 +102,20 @@ tests/                    pytest单元测试(测代码本身对不对,跟eval/�
 这是关键词匹配这种方法本身的局限,不是加几个词能根治的,下一步的解法是接入
 **LLM-as-Judge**(用另一个模型评判开放式回答质量,并做位置偏差/verbosity偏差修正)。
 
+## 本地模型对比(Ollama)
+
+`providers/ollama_provider.py` 接入本地 Ollama 模型(原生 `/api/chat` 接口,可开关思考模式,并返回 prefill / decode 耗时)。
+`eval/compare_local.py` 跑 4 个配置(qwen3:4b、qwen3.5:4b × 思考开/关),每题 3 次,同题同次各配置用同一随机种子;
+每个配置开始前先卸载模型测显存基线。结果逐条写入 `eval/results/local_compare.jsonl`,中断后重跑会跳过已完成的部分。
+
+```bash
+ollama list                          # 确认 qwen3:4b 和 qwen3.5:4b 都在
+python eval/compare_local.py         # 约 1 小时;可先用 --runs 1 试跑
+python eval/summarize_local.py       # 生成 eval/results/local_compare_report.md
+```
+
+事先定好的主要比较:qwen35-nothink vs qwen3-nothink;思考模式规则:成功率提升不显著且耗时超过 2 倍,则默认关闭。
+
 ## 怎么跑
 
 ```bash

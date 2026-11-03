@@ -16,8 +16,7 @@ def test_agent_stops_when_decide_fn_returns_final_answer():
             return {"action": "final_answer", "content": "done"}
         return {
             "action": "tool_call",
-            "tool": "calculator",
-            "input": {"expression": "1 + 1"},
+            "calls": [{"tool": "calculator", "input": {"expression": "1 + 1"}}],
             "reasoning": "test",
         }
 
@@ -33,8 +32,7 @@ def test_agent_does_not_loop_forever_when_decide_fn_never_stops():
     def runaway_decide_fn(task, history):
         return {
             "action": "tool_call",
-            "tool": "calculator",
-            "input": {"expression": "1 + 1"},
+            "calls": [{"tool": "calculator", "input": {"expression": "1 + 1"}}],
             "reasoning": "永远不停",
         }
 
@@ -52,8 +50,7 @@ def test_agent_executes_real_tool_not_fake_result():
             return {"action": "final_answer", "content": "done"}
         return {
             "action": "tool_call",
-            "tool": "calculator",
-            "input": {"expression": "6 * 7"},
+            "calls": [{"tool": "calculator", "input": {"expression": "6 * 7"}}],
             "reasoning": "test",
         }
 
