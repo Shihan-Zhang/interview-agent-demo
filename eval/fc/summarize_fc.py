@@ -5,15 +5,23 @@
 - 单个配置的准确率用 Wilson 置信区间(题少时比正态近似可靠);
 - 两个配置的比较用精确 McNemar 检验:只看两者结果不一致的题,
   在"两者一样好"的原假设下,"只有 A 对"的题数服从 Binomial(不一致题数, 1/2)。
+
+判分和运行分开:这里用当前的 fc_grader 对存下来的调用重新判分,
+判分规则修正后不需要重跑模型。运行时记录的判分结果只作对照。
 """
 
 import json
 import math
 import os
+import sys
 from collections import defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
+sys.path.insert(0, HERE)
+from fc_grader import grade  # noqa: E402
+
+DATA = os.path.join(ROOT, "eval", "datasets", "bfcl_subset_v1.jsonl")
 RESULTS = os.path.join(ROOT, "eval", "results", "fc_bfcl.jsonl")
 REPORT = os.path.join(ROOT, "eval", "results", "fc_bfcl_report.md")
 ORDER = ["qwen3-think", "qwen3i-nothink", "qwen35-think", "qwen35-nothink"]
@@ -47,12 +55,23 @@ def valid(r):
 def main():
     with open(RESULTS, encoding="utf-8") as f:
         rows = [json.loads(line) for line in f if line.strip()]
+    with open(DATA, encoding="utf-8") as f:
+        items = {d["id"]: d for d in map(json.loads, f)}
+    changed, suspicious = 0, 0
+    for r in rows:
+        if r["status"] == "ok":
+            ok, reason = grade(items[r["id"]], [tuple(c) for c in r["calls"]])
+            changed += ok != r["success"]
+            r["success"], r["reason"] = ok, reason
+        if r.get("wall_s", 1) < 0.05:          # 真实调用至少约 1 秒;过快的行来源可疑(见 2026-11-03 假数据事故)
+            suspicious += 1
     first = {(r["config"], r["id"]): r for r in rows if r["run"] == 1}
     configs = sorted({r["config"] for r in rows}, key=lambda c: ORDER.index(c) if c in ORDER else 99)
     cats = sorted({r["category"] for r in rows})
 
     L = ["# BFCL 子集函数调用评测\n",
          f"BFCL v4 分层抽样 40 题(Apache-2.0)。每题每配置 1 次,准确率用 Wilson 95% 置信区间,比较用精确 McNemar 检验。\n",
+         f"重新判分改变了 {changed} 行的结果;来源可疑(耗时 < 0.05 s)的行:{suspicious}。\n",
          "## 各配置结果\n",
          "| 配置 | 有效 | 准确率 [95% CI] | " + " | ".join(cats) + " | 每题耗时 | 每题输出 token |",
          "|---|---|---|" + "---|" * len(cats) + "---|---|"]

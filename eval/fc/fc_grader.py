@@ -34,9 +34,28 @@ def _norm(v):
     return v
 
 
+def _match_one(value, a):
+    """value 与标准答案里的单个可接受取值 a 比较。
+    嵌套字典的标准答案沿用同样的写法(每个键对应可接受取值列表),需要递归展开,
+    否则 {'width': 20} 会被拿去和 {'width': [20]} 直接比较而误判(v1 的 bug,见 simple_python_260)。"""
+    if isinstance(a, dict) and isinstance(value, dict):
+        if set(value) - set(a):
+            return False
+        for k, sub_allowed in a.items():
+            sub_allowed = sub_allowed if isinstance(sub_allowed, list) else [sub_allowed]
+            if k not in value:
+                if "" not in sub_allowed:
+                    return False
+            elif not _value_ok(value[k], sub_allowed):
+                return False
+        return True
+    if isinstance(a, list) and isinstance(value, list) and any(isinstance(x, dict) for x in a):
+        return len(a) == len(value) and all(_match_one(v, x) for v, x in zip(value, a))
+    return _norm(a) == _norm(value)
+
+
 def _value_ok(value, allowed):
-    nv = _norm(value)
-    return any(a != "" and _norm(a) == nv for a in allowed)
+    return any(a != "" and _match_one(value, a) for a in allowed)
 
 
 def match_call(name, args, expected):

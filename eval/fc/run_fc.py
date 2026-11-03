@@ -61,6 +61,9 @@ def main():
         with open(RESULTS, encoding="utf-8") as f:
             done = {(r["config"], r["id"], r["run"]) for r in map(json.loads, f) if r["status"] == "ok"}
     os.makedirs(os.path.dirname(RESULTS), exist_ok=True)
+    with urllib.request.urlopen(f"{DEFAULT_BASE_URL}/api/version", timeout=10) as resp:
+        ollama_version = json.loads(resp.read().decode("utf-8")).get("version")
+    run_id = time.strftime("%Y%m%d-%H%M%S")
 
     for cfg in configs:
         todo = [(run, i, it) for run in range(1, args.runs + 1) for i, it in enumerate(items)
@@ -73,7 +76,8 @@ def main():
         for run, i, it in todo:
             options = {**COMMON, **cfg["sampling"], "seed": run * 100 + i}
             row = {"config": cfg["name"], "model": cfg["model"], "think": cfg["think"], "id": it["id"],
-                   "category": it["category"], "run": run, "options": options}
+                   "category": it["category"], "run": run, "options": options,
+                   "run_id": run_id, "base_url": DEFAULT_BASE_URL, "ollama_version": ollama_version}  # 数据血缘
             t0 = time.time()
             try:
                 data = chat(cfg["model"], cfg["think"], options, it["messages"], it["tools"])

@@ -29,6 +29,17 @@ def test_parallel_is_order_insensitive_and_strings_are_normalised():
     assert grade(PARALLEL, calls)[0]
 
 
+def test_nested_dict_ground_truth_is_expanded():
+    # 来自 simple_python_260:v1 把正确答案误判为错(4 个配置全错)
+    item = {"category": "simple_python", "ground_truth": [{"paint_requirement.calculate": {
+        "area": [{"width": [20], "height": [12]}], "paint_coverage": [350],
+        "exclusion": [{"type": ["window"], "area": [15]}]}}]}
+    good = {"area": {"height": 12, "width": 20}, "paint_coverage": 350, "exclusion": {"type": "window", "area": 15}}
+    assert grade(item, [("paint_requirement.calculate", good)])[0]
+    bad = {**good, "area": {"height": 12, "width": 21}}
+    assert not grade(item, [("paint_requirement.calculate", bad)])[0]
+
+
 def test_irrelevance_requires_no_call():
     item = {"category": "irrelevance", "ground_truth": []}
     assert grade(item, [])[0]
