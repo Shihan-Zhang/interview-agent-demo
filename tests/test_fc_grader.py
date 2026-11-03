@@ -40,6 +40,14 @@ def test_nested_dict_ground_truth_is_expanded():
     assert not grade(item, [("paint_requirement.calculate", bad)])[0]
 
 
+def test_explicit_empty_string_matches_optional_marker():
+    # 来自 live_multiple_74-34-0:可接受列表只有 "",模型显式传了 ""
+    item = {"category": "live_multiple", "ground_truth": [{"f": {"topic": ["tech"], "subtopic": [""]}}]}
+    assert grade(item, [("f", {"topic": "tech", "subtopic": ""})])[0]
+    assert grade(item, [("f", {"topic": "tech"})])[0]
+    assert not grade(item, [("f", {"topic": "tech", "subtopic": "ai"})])[0]
+
+
 def test_irrelevance_requires_no_call():
     item = {"category": "irrelevance", "ground_truth": []}
     assert grade(item, [])[0]

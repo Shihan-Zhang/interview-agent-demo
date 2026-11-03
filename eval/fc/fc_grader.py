@@ -56,7 +56,9 @@ def _match_one(value, a):
 
 
 def _value_ok(value, allowed):
-    return any(a != "" and _match_one(value, a) for a in allowed)
+    # "" 在可接受列表里表示"可以不传";模型显式传空字符串,和 BFCL 官方一样视为匹配
+    #(v2 前会误判,见 live_multiple_74-34-0)
+    return any((a == "" and value == "") or (a != "" and _match_one(value, a)) for a in allowed)
 
 
 def match_call(name, args, expected):
