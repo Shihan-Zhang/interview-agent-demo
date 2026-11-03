@@ -9,3 +9,4 @@ eval/results/fc_*_report.md
 # RAG:个人笔记语料与索引不进仓库
 data/notes/
 rag/store/
+eval/results/rag_*_report.md

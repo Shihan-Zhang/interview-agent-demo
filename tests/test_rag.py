@@ -77,3 +77,13 @@ def test_tiny_sections_are_dropped():
     text = "# 标题\n\nNov 2, 2026 · @Someone\n\n## 正文\n\n" + "这是一段足够长的正文内容，用来确保它会成为一块。" * 3
     chunks = chunk_document(text, "t.md")
     assert len(chunks) == 1 and chunks[0]["path"] == ["正文"]
+
+
+def test_retrieval_eval_matches_evidence_after_normalisation():
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "eval", "rag"))
+    from eval_retrieval import first_hit_rank, norm
+    chunks = [{"text": "无关内容"}, {"text": "点积方差等于 d\\_k → softmax 饱和"}]
+    assert norm("点积方差等于 d_k") in norm(chunks[1]["text"])     # 导出的 Markdown 会转义下划线
+    assert first_hit_rank(chunks, "点积方差等于 d_k") == 2
+    assert first_hit_rank(chunks, "不存在的证据") is None

@@ -1,0 +1,30 @@
+{"id": "m1-01", "type": "语义", "question": "注意力分数为什么要做缩放", "evidence": "点积方差等于 d_k"}
+{"id": "m1-02", "type": "精确词", "question": "Self-Attention 的时间和显存复杂度", "evidence": "时间 O(L²d)、显存 O(L²)"}
+{"id": "m1-03", "type": "计算", "question": "一个 4096 维、32 层的模型大概多少参数", "evidence": "12 × 4096² × 32 ≈ 64 亿"}
+{"id": "m1-04", "type": "精确词", "question": "用了 GQA 以后 KV cache 能省多少", "evidence": "GQA 8 组时降到 0.5 GB"}
+{"id": "m1-05", "type": "语义", "question": "多个注意力头在实现上是怎么并行的", "evidence": "多头的本质是一次 reshape"}
+{"id": "m1-06", "type": "语义", "question": "扩散语言模型和 GPT 在注意力上有什么区别", "evidence": "MDLM 不遮挡注意力"}
+{"id": "m1-07", "type": "语义", "question": "现在大模型架构一般用哪些组件", "evidence": "现在主流组合几乎固定"}
+{"id": "m5-01", "type": "计算", "question": "想把置信区间控制在正负 5 个点要多少道题", "evidence": "p = 0.8 时 n ≈ 246"}
+{"id": "m5-02", "type": "精确词", "question": "McNemar 检验 b=6 c=1 的 p 值", "evidence": "b = 6、c = 1 时 p = 0.125"}
+{"id": "m5-03", "type": "语义", "question": "bootstrap 为什么要按题重抽样而不是按运行次数", "evidence": "题是抽样单位"}
+{"id": "m5-04", "type": "语义", "question": "预算有限时多加题还是多跑几次", "evidence": "增加题数比增加重复次数有效"}
+{"id": "m5-05", "type": "计算", "question": "要测出 5 个百分点的差距大概要多少题", "evidence": "要检出 5 个百分点约需 480 题"}
+{"id": "m5-06", "type": "精确词", "question": "做很多次检验时 Bonferroni 怎么校正", "evidence": "Bonferroni 校正把每次的显著性阈值降为"}
+{"id": "m5-07", "type": "语义", "question": "Agent 上线更应该看哪个通过率指标", "evidence": "衡量稳定性，Agent 上线看这个"}
+{"id": "m5-08", "type": "语义", "question": "怎么判断评测结果是不是靠运气", "evidence": "每个结论都要带上不确定性"}
+{"id": "m5-09", "type": "语义", "question": "为什么 qwen3 的关思考对照换成了 instruct 版", "evidence": "关思考 36/36 次失败"}
+{"id": "m5-10", "type": "语义", "question": "思考模式要不要默认打开", "evidence": "耗时是 2–3 倍，默认关闭"}
+{"id": "m5-11", "type": "语义", "question": "好几个模型在同一道题上都错了该怎么想", "evidence": "先怀疑题目和管线，再怀疑模型"}
+{"id": "m5-12", "type": "语义", "question": "改了判分规则需要重新跑模型吗", "evidence": "原始输出只存一次，判分可以反复重算"}
+{"id": "m5-13", "type": "语义", "question": "为什么不能用向量相似度来判断回答对错", "evidence": "向量很近"}
+{"id": "m5-14", "type": "语义", "question": "输出被截断的题应该怎么算分", "evidence": "截断一律判失败"}
+{"id": "m5-15", "type": "精确词", "question": "怎么证明两个模型效果等价，TOST 是什么", "evidence": "用等价性检验（TOST）"}
+{"id": "plan-01", "type": "语义", "question": "阶段二要做出哪些能写进简历的东西", "evidence": "Agent demo 的评测模块"}
+{"id": "plan-02", "type": "计算", "question": "Agent 评测集计划建多少条任务", "evidence": "建一个约 50 条任务的评测集"}
+{"id": "meta-01", "type": "语义", "question": "学习资料应该优先看哪些来源", "evidence": "企业技术分享 > 面试者面经 > 论文 > 教材"}
+{"id": "none-01", "type": "查不到", "question": "Qwen3-4B-Instruct-2507 推荐温度是多少", "evidence": ""}
+{"id": "none-02", "type": "查不到", "question": "腾讯大模型评测岗的薪资大概多少", "evidence": ""}
+{"id": "none-03", "type": "查不到", "question": "GRPO 的优势函数怎么计算", "evidence": ""}
+{"id": "none-04", "type": "查不到", "question": "vLLM 的 PagedAttention 每个块默认多少 token", "evidence": ""}
+{"id": "none-05", "type": "查不到", "question": "国家数据集团 AI 测评研究员的报名截止日期", "evidence": ""}
