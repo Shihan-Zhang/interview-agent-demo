@@ -66,13 +66,19 @@ class Retriever:
     def bm25_scores(self, query):
         return np.asarray(self.bm25.get_scores(tokenize(query)), dtype=np.float32)               # [N]
 
+    def bm25_top(self, query, k):
+        """只返回 BM25 分数 > 0 的块(至少命中一个查询词)。
+        分数为 0 的块之间顺序是任意的;不过滤的话,它们会被排进前 k,在 hybrid 里还会白拿 RRF 分数。"""
+        s = self.bm25_scores(query)
+        return [i for i in top_k(s, k) if s[i] > 0]
+
     def search(self, query, k=5, mode="hybrid", pool=30):
         if mode == "dense":
             order = top_k(self.dense_scores(query), k)
         elif mode == "bm25":
-            order = top_k(self.bm25_scores(query), k)
+            order = self.bm25_top(query, k)
         elif mode == "hybrid":
-            order = rrf([top_k(self.dense_scores(query), pool), top_k(self.bm25_scores(query), pool)])[:k]
+            order = rrf([top_k(self.dense_scores(query), pool), self.bm25_top(query, pool)])[:k]
         else:
             raise ValueError(mode)
         return [self.chunks[i] for i in order]

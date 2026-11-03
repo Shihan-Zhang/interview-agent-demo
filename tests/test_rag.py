@@ -65,3 +65,15 @@ def test_bm25_finds_exact_model_name():
     r = Retriever(chunks)                          # 不带向量,只测 BM25
     best = r.search("Qwen3-4B-Instruct-2507 推荐温度", k=1, mode="bm25")[0]
     assert "0.7" in best["text"]
+
+
+def test_bm25_never_returns_zero_score_chunks():
+    chunks = chunk_document(TEXT, "sample.md")
+    r = Retriever(chunks)
+    assert r.search("完全不相关的词汇组合", k=5, mode="bm25") == []
+
+
+def test_tiny_sections_are_dropped():
+    text = "# 标题\n\nNov 2, 2026 · @Someone\n\n## 正文\n\n" + "这是一段足够长的正文内容，用来确保它会成为一块。" * 3
+    chunks = chunk_document(text, "t.md")
+    assert len(chunks) == 1 and chunks[0]["path"] == ["正文"]

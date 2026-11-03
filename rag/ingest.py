@@ -119,7 +119,7 @@ def _split_long(text, kind, s, e, max_tokens):
     return out
 
 
-def chunk_document(text, source, max_tokens=400, overlap=1):
+def chunk_document(text, source, max_tokens=400, overlap=1, min_tokens=8):
     title, sections = parse_sections(text)
     chunks = []
     for path, s, e in sections:
@@ -135,6 +135,8 @@ def chunk_document(text, source, max_tokens=400, overlap=1):
             body = "\n".join(u[1] for u in units[i:j])
             prefix = " > ".join(path[-2:])
             cid = hashlib.sha1(f"{source}:{units[i][2]}:{units[j - 1][3]}".encode()).hexdigest()[:12]
+            if toks < min_tokens and i == 0 and j >= len(units):
+                break                      # 整个小节只有零星几个字(如文档开头的日期署名行),不成块
             chunks.append({"id": cid, "source": source, "doc_title": title, "path": path,
                            "start": units[i][2], "end": units[j - 1][3], "text": body,
                            "embed_text": f"[{prefix}] {body}" if prefix else body,
