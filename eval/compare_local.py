@@ -39,6 +39,10 @@ CONFIGS = [
      "sampling": {"temperature": 0.6, "top_p": 0.95, "top_k": 20}},
     {"name": "qwen3-nothink",  "model": "qwen3:4b",   "think": False,
      "sampling": {"temperature": 0.7, "top_p": 0.8, "top_k": 20}},
+    # 修正版:第一版的 qwen3-nothink 只设了 think=False,实测思考内容泄漏进了回答正文(36/36),
+    # 操纵检查不通过。这里再加上 Qwen3 官方的软开关 /no_think。
+    {"name": "qwen3-nothink-v2", "model": "qwen3:4b", "think": False, "user_suffix": " /no_think",
+     "sampling": {"temperature": 0.7, "top_p": 0.8, "top_k": 20}},
     {"name": "qwen35-think",   "model": "qwen3.5:4b", "think": True,
      "sampling": {"temperature": 1.0, "top_p": 0.95, "top_k": 20, "presence_penalty": 1.5}},
     {"name": "qwen35-nothink", "model": "qwen3.5:4b", "think": False,
@@ -154,9 +158,10 @@ def main():
 
         for run, i, task in todo:
             options = {**COMMON, **cfg["sampling"], "seed": run * 100 + i}   # 各配置同题同次用同一种子
-            decide_fn = make_ollama_decide_fn(cfg["model"], cfg["think"], options)
+            decide_fn = make_ollama_decide_fn(cfg["model"], cfg["think"], options,
+                                              user_suffix=cfg.get("user_suffix", ""))
             row = {"config": cfg["name"], "model": cfg["model"], "think": cfg["think"],
-                   "options": options, "id": task["id"], "run": run, "check_type": task["check_type"]}
+                   "options": options, "user_suffix": cfg.get("user_suffix", ""), "id": task["id"], "run": run, "check_type": task["check_type"]}
             t0 = time.time()
             try:
                 traj = run_agent(task["task"], decide_fn=decide_fn, verbose=False)

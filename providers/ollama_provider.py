@@ -16,9 +16,10 @@ DEFAULT_BASE_URL = "http://localhost:11434"
 NS = 1e9  # Ollama 返回的耗时单位是纳秒
 
 
-def build_messages(task: str, history: list) -> list:
-    """把 agent.py 的 history 还原成 Ollama 原生格式的多轮消息(纯函数,方便单元测试)。"""
-    messages = [{"role": "user", "content": task}]
+def build_messages(task: str, history: list, user_suffix: str = "") -> list:
+    """把 agent.py 的 history 还原成 Ollama 原生格式的多轮消息(纯函数,方便单元测试)。
+    user_suffix:附加在用户问题后面的文字,例如 Qwen3 的软开关 " /no_think"。"""
+    messages = [{"role": "user", "content": task + user_suffix}]
     id_to_tool = {}
     for h in history:
         if h["type"] == "tool_call":
@@ -88,7 +89,7 @@ def parse_response(data: dict, step_index: int) -> dict:
 
 def make_ollama_decide_fn(model: str, think: bool, options: dict,
                           base_url: str = DEFAULT_BASE_URL, timeout: int = 600,
-                          keep_alive: str = "30m"):
+                          keep_alive: str = "30m", user_suffix: str = ""):
     """
     返回一个 decide_fn,签名和其他 provider 完全一样:(task, history) -> decision。
     options: 采样参数等,原样传给 Ollama(temperature、top_p、top_k、presence_penalty、
@@ -99,7 +100,7 @@ def make_ollama_decide_fn(model: str, think: bool, options: dict,
     def decide_fn(task: str, history: list) -> dict:
         body = {
             "model": model,
-            "messages": build_messages(task, history),
+            "messages": build_messages(task, history, user_suffix),
             "tools": OPENAI_TOOL_SCHEMAS,
             "think": think,
             "stream": False,
