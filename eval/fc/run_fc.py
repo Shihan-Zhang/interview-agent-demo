@@ -1,12 +1,18 @@
 """
 在 BFCL 子集上评测本地模型的函数调用能力。每题只调用一次模型,不执行函数,只判调用对不对。
 
-配置沿用 compare_local.py 里操纵检查通过的 4 个。默认每题跑 1 次:
-每题一个"对/错"结果,配置之间正好用精确 McNemar 检验比较。
+默认每题跑 1 次:每题一个"对/错"结果,配置之间用精确 McNemar 检验比较。
+
+v2 起默认只跑主要比较的 2 个配置(qwen3i-nothink、qwen35-nothink):
+v1 和 Agent 评测里开思考都没有显著提升、耗时是 2–3 倍,把算力集中到主要比较上换题量。
+num_ctx 提高到 8192:live_multiple 的函数定义很长,4096 会被 Ollama 静默截断。
+v2 前 40 题就是 v1,顺序和种子相同,v1 已有的结果直接复用(v1 时 num_ctx=4096,
+但那些题远短于 4096,不截断时上下文窗口大小不影响输出)。
 
 运行(项目根目录):
-    python eval/fc/run_fc.py                      # 4 个配置 × 40 题
+    python eval/fc/run_fc.py                                   # 2 个配置 × 150 题
     python eval/fc/run_fc.py --configs qwen35-nothink --limit 5   # 先试 5 题
+    python eval/fc/run_fc.py --data eval/datasets/bfcl_subset_v1.jsonl --configs qwen3-think,qwen35-think
     python eval/fc/summarize_fc.py
 """
 
@@ -23,12 +29,14 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "eval"))
 sys.path.insert(0, HERE)
 
-from compare_local import COMMON, CONFIGS, unload_all, warm_up  # noqa: E402
+from compare_local import COMMON, CONFIGS, unload_all  # noqa: E402
 from fc_grader import grade  # noqa: E402
 from providers.ollama_provider import DEFAULT_BASE_URL, parse_response  # noqa: E402
 
 VALID_CONFIGS = ["qwen3-think", "qwen3i-nothink", "qwen35-think", "qwen35-nothink"]
-DATA = os.path.join(ROOT, "eval", "datasets", "bfcl_subset_v1.jsonl")
+DEFAULT_CONFIGS = ["qwen3i-nothink", "qwen35-nothink"]
+FC_OPTIONS = {**COMMON, "num_ctx": 8192}
+DATA = os.path.join(ROOT, "eval", "datasets", "bfcl_subset_v2.jsonl")
 RESULTS = os.path.join(ROOT, "eval", "results", "fc_bfcl.jsonl")
 
 
@@ -43,7 +51,8 @@ def chat(model, think, options, messages, tools):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--configs", default=",".join(VALID_CONFIGS))
+    ap.add_argument("--configs", default=",".join(DEFAULT_CONFIGS))
+    ap.add_argument("--data", default=DATA)
     ap.add_argument("--runs", type=int, default=1)
     ap.add_argument("--limit", type=int, default=None, help="只跑前 N 题,用来试跑")
     args = ap.parse_args()
@@ -52,7 +61,7 @@ def main():
     except Exception:
         pass
 
-    with open(DATA, encoding="utf-8") as f:
+    with open(args.data, encoding="utf-8") as f:
         items = [json.loads(line) for line in f if line.strip()][: args.limit]
     names = args.configs.split(",")
     configs = [c for c in CONFIGS if c["name"] in names]
@@ -71,10 +80,12 @@ def main():
         if not todo:
             continue
         unload_all()
-        warm_up(cfg["model"], cfg["think"])
+        # 用和正式请求相同的 num_ctx 预热;否则第一题会因上下文大小变化触发重新加载,计时偏大
+        chat(cfg["model"], cfg["think"], {**FC_OPTIONS, "num_predict": 16},
+             [{"role": "user", "content": "你好"}], [])
         print(f"\n[{cfg['name']}] {len(todo)} 题")
         for run, i, it in todo:
-            options = {**COMMON, **cfg["sampling"], "seed": run * 100 + i}
+            options = {**FC_OPTIONS, **cfg["sampling"], "seed": run * 100 + i}
             row = {"config": cfg["name"], "model": cfg["model"], "think": cfg["think"], "id": it["id"],
                    "category": it["category"], "run": run, "options": options,
                    "run_id": run_id, "base_url": DEFAULT_BASE_URL, "ollama_version": ollama_version}  # 数据血缘

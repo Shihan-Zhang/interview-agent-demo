@@ -4,4 +4,4 @@ __pycache__/
 trajectories/
 eval/eval_results.jsonl
 eval/results/*.jsonl
-eval/results/fc_bfcl_report.md
+eval/results/fc_*_report.md

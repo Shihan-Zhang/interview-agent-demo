@@ -48,3 +48,32 @@ def test_irrelevance_requires_no_call():
 
 def test_mcnemar_exact_matches_hand_calculation():
     assert abs(mcnemar_exact(6, 1) - 0.125) < 1e-12
+
+
+def _canonical(allowed):
+    a = next(x for x in allowed if x != "")
+    if isinstance(a, dict):
+        return {k: _canonical(v) for k, v in a.items() if any(x != "" for x in v)}
+    if isinstance(a, list) and any(isinstance(x, dict) for x in a):
+        return [_canonical([x]) for x in a]
+    return a
+
+
+def test_every_ground_truth_passes_its_own_grader():
+    """自洽检查:把每道题的标准答案(取第一个可接受值,反序)当作模型输出,必须判对。
+    v1 判分器在 simple_python_260 上的嵌套字典 bug,这个测试能直接抓到。"""
+    import json
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    path = os.path.join(root, "eval", "datasets", "bfcl_subset_v2.jsonl")
+    with open(path, encoding="utf-8") as f:
+        items = [json.loads(line) for line in f]
+    failures = []
+    for it in items:
+        if "relevance" in it["category"]:
+            continue
+        calls = [(name, {k: _canonical(v) for k, v in ps.items() if any(x != "" for x in v)})
+                 for g in it["ground_truth"] for name, ps in g.items()][::-1]
+        ok, reason = grade(it, calls)
+        if not ok:
+            failures.append((it["id"], reason))
+    assert not failures, failures

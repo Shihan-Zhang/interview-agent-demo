@@ -4,7 +4,8 @@ BFCL 风格的函数调用判分(简化版 AST 匹配,规则参照 BFCL 官方�
 只判"模型发出的函数调用对不对",不执行函数:
 - simple / multiple:恰好一次调用;函数名正确;参数逐个比对;
 - parallel:调用次数和标准答案相同,顺序无关,逐一配对;
-- irrelevance:给的函数都和问题无关,正确做法是不调用任何函数。
+- irrelevance / live_irrelevance:给的函数都和问题无关,正确做法是不调用任何函数;
+- live_relevance:至少有一个函数能用,正确做法是发出至少一个调用(BFCL 不判参数)。
 
 参数比对:
 - 标准答案里每个参数给出"可接受取值列表",列表里有 "" 表示这个参数可以不传;
@@ -79,7 +80,9 @@ def match_call(name, args, expected):
 def grade(item, calls):
     """calls:[(函数名, 参数 dict)],函数名已换回原名。"""
     cat, gt = item["category"], item["ground_truth"]
-    if cat == "irrelevance":
+    if cat == "live_relevance":
+        return bool(calls), ("发出了调用" if calls else "应调用函数,却没有调用")
+    if cat in ("irrelevance", "live_irrelevance"):
         return (not calls), ("正确地没有调用函数" if not calls else f"不应调用函数,却调用了 {calls[0][0]}")
     if len(calls) != len(gt):
         return False, f"调用次数 {len(calls)} ≠ 期望 {len(gt)}"
