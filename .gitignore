@@ -3,3 +3,10 @@ __pycache__/
 *.pyc
 trajectories/
 eval/eval_results.jsonl
+eval/results/*.jsonl
+eval/results/fc_*_report.md
+
+# RAG:个人笔记语料与索引不进仓库
+data/notes/
+rag/store/
+eval/results/rag_*_report.md
