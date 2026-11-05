@@ -10,3 +10,6 @@ eval/results/fc_*_report.md
 data/notes/
 rag/store/
 eval/results/rag_*_report.md
+
+# 外部基准(ToolMaze / CRITICTOOL / RGB 的代码与数据):只引用,不进仓库
+external/

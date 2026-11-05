@@ -1,0 +1,37 @@
+# E0 管线检查用的 ToolMaze 配置:本地 Qwen3-4B-Instruct(8K 上下文变体)+ 硅基流动裁判
+# 与官方配置的差别都写在注释里;正式实验(E1/E2)改用 eval/agent_error/toolmaze_run.py,以便控制提示词
+
+agent:
+  type: "vllm"                         # 即 OpenAI 兼容接口;Ollama 的 /v1 也是这个协议
+  model: "qwen3i-8k"                   # scripts/e0_setup.ps1 第 5 步建立:num_ctx 固定 8192
+  base_url: "http://localhost:11434/v1"
+  api_key: "ollama"
+  temperature: 0.7                     # Qwen3-Instruct-2507 官方推荐值(与 compare_local.py 一致)
+  max_tokens: 2048                     # 官方 32000;本地 8192 上下文下必须给输入留空间
+
+judge:
+  model: "deepseek-ai/DeepSeek-V3"     # 与被测 Qwen 不同家族,避免同源偏差;按硅基流动账户里可用的型号调整
+  temperature: 0                       # 官方为 1;裁判要可复现,用 0
+  api_key: "${SILICONFLOW_API_KEY}"
+  base_url: "https://api.siliconflow.cn/v1"
+
+execution:
+  max_rounds: 25
+  timeout_per_round: 1000
+
+data:
+  task_dir: "data/perturbed_tasks/c1"
+  output_dir: "../results"             # 即 external/agent_error/results(相对 toolmaze 目录)
+  task_category: "c1"
+  tools_dir: "tools"
+  template_dir: "data/templates"
+
+evaluation:
+  modes: ["P0"]
+  parallel: false                      # 本地 Ollama 一次只处理一个请求,并发只会制造排队
+  max_workers: 1
+  save_traces: true
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
