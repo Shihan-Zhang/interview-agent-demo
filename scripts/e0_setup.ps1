@@ -13,10 +13,19 @@ $Logs = Join-Path $Ext "logs"
 New-Item -ItemType Directory -Force $AE, $Logs | Out-Null
 Start-Transcript -Path (Join-Path $Logs "e0.log") -Force | Out-Null
 
+# 读取仓库根目录的 .env(KEY=VALUE,# 开头为注释);密钥只放这里,不进仓库
+$EnvFile = Join-Path $Root ".env"
+if (Test-Path $EnvFile) {
+  Get-Content $EnvFile -Encoding UTF8 | Where-Object { $_ -match '^\s*[A-Za-z_][A-Za-z0-9_]*\s*=' } | ForEach-Object {
+    $k, $v = $_ -split '=', 2
+    $k = $k.Trim(); $v = $v.Trim().Trim('"')
+    if ($v) { Set-Item -Path "Env:$k" -Value $v }
+  }
+} else { Write-Warning "没有找到 .env:复制 .env.example 为 .env 并填写" }
+
 # 大文件全部放 D 盘:pip 缓存、HuggingFace 缓存
 $env:PIP_CACHE_DIR = "D:\ZSH\cache\pip"
 $env:HF_HOME       = "D:\ZSH\cache\hf"
-$env:HF_ENDPOINT   = "https://hf-mirror.com"      # 国内镜像;直连 huggingface.co 可删掉这一行
 # ToolMaze 用 open(f, 'r') 读 JSON 不指定编码;中文 Windows 默认 GBK,会读坏 UTF-8 文件
 $env:PYTHONUTF8    = "1"
 
@@ -66,7 +75,7 @@ Step "6. 检查 Ollama 的 OpenAI 兼容接口"
 Invoke-RestMethod http://localhost:11434/v1/models | ConvertTo-Json -Depth 4
 
 Step "7. 管线检查:C1 前 5 道 P0 题(串行)"
-if (-not $env:SILICONFLOW_API_KEY) { Write-Warning "没有找到 SILICONFLOW_API_KEY 环境变量,裁判将无法调用" }
+if (-not $env:SILICONFLOW_API_KEY) { Write-Warning ".env 里的 SILICONFLOW_API_KEY 为空,裁判将无法调用" }
 $Cfg = Join-Path $Root "eval\agent_error\configs\toolmaze_e0.yaml"
 Push-Location $TM
 $t0 = Get-Date

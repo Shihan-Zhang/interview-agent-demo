@@ -13,3 +13,6 @@ eval/results/rag_*_report.md
 
 # 外部基准(ToolMaze / CRITICTOOL / RGB 的代码与数据):只引用,不进仓库
 external/
+
+# 本地密钥与路径配置
+.env

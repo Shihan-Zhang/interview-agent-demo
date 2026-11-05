@@ -10,10 +10,10 @@ agent:
   max_tokens: 2048                     # 官方 32000;本地 8192 上下文下必须给输入留空间
 
 judge:
-  model: "deepseek-ai/DeepSeek-V3"     # 与被测 Qwen 不同家族,避免同源偏差;按硅基流动账户里可用的型号调整
+  model: "${JUDGE_MODEL}"              # .env 里设置,默认 deepseek-ai/DeepSeek-V3.2;与被测 Qwen 不同家族,避免同源偏差
   temperature: 0                       # 官方为 1;裁判要可复现,用 0
   api_key: "${SILICONFLOW_API_KEY}"
-  base_url: "https://api.siliconflow.cn/v1"
+  base_url: "${SILICONFLOW_BASE_URL}"
 
 execution:
   max_rounds: 25
