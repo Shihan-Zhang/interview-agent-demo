@@ -106,10 +106,9 @@ eval/
   graders.py          判分 v2 与操纵检查
   fc/                 BFCL 子集构建、AST 判分、运行、汇总、单题 Trace 查看
   rag/                检索评测集(按证据原文标注)与评测脚本
-  agent_faults/       故障注入评测:注入器、判分(5 类结果)、虚构数据、运行与汇总(按题聚类 bootstrap)
   datasets/           评测数据(来源、协议、抽样方式见 README)
   results/            定稿报告与事先预测
-tests/                54 项单元测试:测"评测工具本身"对不对(判分器、解析、切分、检索)
+tests/                43 项单元测试:测"评测工具本身"对不对(判分器、解析、切分、检索)
 ```
 
 ---
@@ -118,7 +117,7 @@ tests/                54 项单元测试:测"评测工具本身"对不对(判分
 
 ```bash
 pip install -r requirements.txt
-python -m pytest -q                                   # 54 passed
+python -m pytest -q                                   # 43 passed
 
 # 函数调用评测(需要 Ollama 和 qwen3:4b-instruct、qwen3.5:4b)
 python eval/fc/run_fc.py && python eval/fc/summarize_fc.py
@@ -131,10 +130,8 @@ python -m rag.ingest data/notes && python -m rag.index
 python -m rag.retrieve "McNemar 检验怎么算" --mode hybrid
 python eval/rag/eval_retrieval.py
 
-# 路由 Agent 故障注入评测(先用假大脑验证管线,再跑真模型)
-python eval/agent_faults/run_faults.py --brain mock-robust --out eval/results/faults_mock.jsonl
-python eval/agent_faults/run_faults.py --brain ollama --config qwen3i-nothink --prompt guided
-python eval/agent_faults/summarize_faults.py eval/results/faults_qwen3i-nothink_guided.jsonl
+# 路由 Agent(笔记索引 + data/jobs/jobs_snapshot.json)
+python -m router.cli "下周有哪些岗位要面试?"
 ```
 
 用 API 模型跑 Agent 评测:设置 `SILICONFLOW_API_KEY` 后运行 `python eval/run_eval.py --mode real --provider siliconflow && python eval/score.py`。
@@ -147,7 +144,7 @@ python eval/agent_faults/summarize_faults.py eval/results/faults_qwen3i-nothink_
 - [ ] **重排消融**:交叉编码器重排对 Recall@1 的提升
 - [ ] **LLM-as-Judge**:人工标注校准(Cohen's κ),检查位置偏差与同源偏差,替换关键词判分
 - [x] **路由 Agent**:笔记(RAG)/ 岗位表(结构化查询)/ 搜索三个工具已接入 Agent 循环(`router/`)
-- [ ] **故障注入评测**:5 类故障 × 24 题,按类别统计恢复率与编造率——框架和假大脑验证已完成(`eval/agent_faults/`),真模型结果待跑
+- [ ] **错误恢复评测**:复现公开基准(ToolMaze,显式/隐式 × 暂时/持续 4 类扰动),本地模型 vs API 大模型
 - [ ] 比较 workflow 与 agent 的成功率和成本
 - [ ] **扩大评测集**到约 480 题,加入中文工具调用(T-Eval);块大小实验改用固定 token 预算
 - [ ] **服务化**:FastAPI + Redis 任务队列 + Docker + CI,并发压测

@@ -7,8 +7,7 @@
 3. 报错可操作:参数不合法时能告诉模型"可选值是哪些",模型据此改参数重试
    (Anthropic 工具设计建议:错误信息要能指导下一步,而不是只给一个错误码)。
 
-数据来源:Notion「求职追踪 Job Tracker」导出的快照(个人数据,不进仓库,放 data/jobs/);
-评测用 eval/agent_faults/fixtures/jobs_fixture.json(虚构公司,保证模型不可能凭记忆答对)。
+数据来源:Notion「求职追踪 Job Tracker」导出的快照(个人数据,不进仓库,放 data/jobs/)。
 """
 
 import json
