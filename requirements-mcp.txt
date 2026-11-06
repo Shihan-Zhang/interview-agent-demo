@@ -1,0 +1,7 @@
+# 知识库 MCP 服务器(kb_mcp/)的依赖,单独的虚拟环境 external\venv-mcp:
+# mcp-server-qdrant 0.8.1 锁定 fastmcp==2.7.0、pydantic<2.12,与 requirements.txt 的 pydantic 2.14 冲突
+mcp-server-qdrant==0.8.1
+numpy
+jieba
+rank_bm25
+pytest
