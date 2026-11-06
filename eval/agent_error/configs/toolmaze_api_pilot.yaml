@@ -1,0 +1,43 @@
+# E1-API 试跑:按论文设置(温度 1、max_tokens 16000、最多 25 步、w/ hint 配置)在 API 上跑 Qwen3.5-35B-A3B
+# 用 eval/agent_error/toolmaze_run.py 运行(补丁:放宽超时、显式开思考、记录每次调用)
+
+agent:
+  type: "openai"                       # OpenAI 兼容协议;硅基流动兼容
+  model: "Qwen/Qwen3.5-35B-A3B"        # 论文同款;型号名固定,运行时记录日期
+  base_url: "${SILICONFLOW_BASE_URL}"
+  api_key: "${SILICONFLOW_API_KEY}"
+  temperature: 1.0                     # 论文:All LLM sampling uses temperature 1
+  max_tokens: 16000                    # 论文:max tokens 16,000
+  extra_body:
+    enable_thinking: true              # 论文未写明;按 Shihan 的决定显式开启
+
+patch:
+  request_timeout_s: 300               # 官方 45 s;开思考后单轮可能超过
+  call_log: "../../../external/agent_error/results/e1api_pilot/calls.jsonl"
+
+judge:
+  model: "${JUDGE_MODEL}"              # 官方判分为纯规则,不会调用
+  temperature: 0
+  api_key: "${SILICONFLOW_API_KEY}"
+  base_url: "${SILICONFLOW_BASE_URL}"
+
+execution:
+  max_rounds: 25                       # 论文:maximum of 25 agent steps
+  timeout_per_round: 1000
+
+data:
+  task_dir: "data/perturbed_tasks/c1"  # 脚本按 --task-category 逐层覆盖
+  output_dir: "../results/e1api_pilot"
+  task_category: "c1"
+  tools_dir: "tools"
+  template_dir: "data/templates"
+
+evaluation:
+  modes: ["P0", "P1", "P2", "P3", "P4"]
+  parallel: true                       # API 可并发
+  max_workers: 4
+  save_traces: true
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
