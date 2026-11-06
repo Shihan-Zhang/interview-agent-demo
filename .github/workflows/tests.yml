@@ -18,3 +18,15 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt pytest
       - run: python -m pytest -q
+
+  kb-mcp:
+    # 知识库 MCP 服务器单独一个环境:mcp-server-qdrant 锁定的 pydantic 与项目环境冲突
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-mcp.txt
+      - run: python -m pytest -q tests/test_kb_mcp.py
