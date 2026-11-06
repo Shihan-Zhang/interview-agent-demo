@@ -174,21 +174,47 @@ def real_llm_decide(task: str, history: list, client, model: str) -> dict:
 # =========================================================
 # 主循环:推理 -> 工具调用 -> 观察 -> 再推理
 # =========================================================
+def execute_tool(tool_functions: dict, tool_name: str, tool_input) -> dict:
+    """执行一次工具调用,任何异常都转成 {"ok": False, ...} 的观察,而不是让整个循环崩掉。
+
+    为什么要在循环这一层兜底:模型传错参数名(TypeError)、工具内部抛异常,
+    都是 Agent 在真实环境里一定会遇到的"故障";把它们变成观察还给模型,
+    模型才有机会自己纠正——这正是故障注入评测要测的"恢复能力"。
+    error_type 字段让评测能按错误类别统计,而不用解析中文报错文本。
+    """
+    if tool_name not in tool_functions:
+        return {"ok": False, "error_type": "unknown_tool",
+                "error": f"未知工具: {tool_name}。可用工具: {', '.join(tool_functions)}"}
+    if not isinstance(tool_input, dict):
+        return {"ok": False, "error_type": "invalid_arguments", "error": "参数必须是 JSON 对象"}
+    try:
+        return tool_functions[tool_name](**tool_input)
+    except TypeError as e:          # 参数名不对、缺必填参数
+        return {"ok": False, "error_type": "invalid_arguments", "error": f"参数错误: {e}"}
+    except Exception as e:          # 工具内部错误:记下类型,不暴露堆栈
+        return {"ok": False, "error_type": "tool_exception", "error": f"{type(e).__name__}: {e}"}
+
+
 def run_agent(task: str, use_mock: bool = True, client=None, model: str = "claude-sonnet-5",
-              decide_fn=None, verbose: bool = True):
+              decide_fn=None, verbose: bool = True, tool_functions: dict = None,
+              max_steps: int = MAX_STEPS):
     """
     decide_fn: 可选的自定义"推理"函数,签名 (task, history) -> decision。
     评测脚本(eval/)用它来给每个任务指定一个"正确工具"的最小化假大脑,
     而不去碰 mock_llm_decide / real_llm_decide 这两个默认实现——
     这样评测逻辑和这里的循环逻辑解耦,互不影响。
+    tool_functions: 工具名 -> 函数。默认用 tools.py 里的计算器/概念查询;
+                    路由 Agent 传 router.tools 的三个工具,故障注入评测再在外面包一层注入器。
+    max_steps: 推理轮数上限。恢复需要额外的轮次(重试、换工具),所以故障评测要调大。
     """
+    tool_functions = TOOL_FUNCTIONS if tool_functions is None else tool_functions
     trajectory = Trajectory(task)
     history = []
 
     if verbose:
         print(f"\n>>> 任务: {task}")
 
-    for step in range(MAX_STEPS):
+    for step in range(max_steps):
         # ---- 1. 推理 (Reasoning) ----
         if decide_fn is not None:
             decision = decide_fn(task, history)
@@ -223,10 +249,7 @@ def run_agent(task: str, use_mock: bool = True, client=None, model: str = "claud
                 print(f"  [步骤{step}.{i}] 调用工具: {tool_name}({tool_input})")
 
             # ---- 3. 观察 (Observation): 真正执行工具,拿到真实结果 ----
-            if tool_name not in TOOL_FUNCTIONS:
-                result = {"ok": False, "error": f"未知工具: {tool_name}"}
-            else:
-                result = TOOL_FUNCTIONS[tool_name](**tool_input)
+            result = execute_tool(tool_functions, tool_name, tool_input)
 
             trajectory.log("observation", {"id": call_id, "result": result})
             if verbose:
@@ -242,7 +265,8 @@ def run_agent(task: str, use_mock: bool = True, client=None, model: str = "claud
 
         # ---- 4. 循环回到第1步,带着新的 history 再次推理 ----
 
-    trajectory.log("final_answer", {"content": "(达到最大步数,强制终止——真实系统里这算一种失败模式)"})
+    trajectory.log("final_answer", {"content": "(达到最大步数,强制终止——真实系统里这算一种失败模式)",
+                                    "max_steps_reached": True})
     if verbose:
         print("已达到最大步数,强制终止循环。")
     return trajectory
