@@ -1,0 +1,20 @@
+# 每次推送和 PR 自动跑单元测试(判分器、解析、切分、检索、Agent 循环)
+# 测试不调用模型、不联网,几秒钟跑完
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt pytest
+      - run: python -m pytest -q
