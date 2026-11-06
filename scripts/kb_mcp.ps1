@@ -24,14 +24,14 @@ if (-not (Test-Path $PyM)) { python -m venv $Venv }
 
 Step "3. 单元测试(不需要 Ollama)"
 Push-Location $Root
-& $PyM -m pytest -q tests\test_kb_mcp.py -p no:warnings
+& $PyM -m pytest -q tests\test_kb_mcp.py -p no:warnings 2>&1 | Out-Host
 
 Step "4. 导入:复用 rag\store 的块和 bge-m3 向量,写入 $env:QDRANT_LOCAL_PATH"
-& $PyM -m kb_mcp.ingest --recreate
+& $PyM -m kb_mcp.ingest --recreate 2>&1 | Out-Host
 
 Step "5. 等价性评测:通过 MCP(stdio 子进程)vs 直接调用 retrieve.py"
 $t0 = Get-Date
-& $PyM eval\rag\eval_mcp_retrieval.py
+& $PyM eval\rag\eval_mcp_retrieval.py 2>&1 | Out-Host
 Write-Host ("耗时 {0:N1} 秒" -f ((Get-Date) - $t0).TotalSeconds)
 Pop-Location
 
