@@ -16,10 +16,12 @@ DEFAULT_BASE_URL = "http://localhost:11434"
 NS = 1e9  # Ollama 返回的耗时单位是纳秒
 
 
-def build_messages(task: str, history: list, user_suffix: str = "") -> list:
+def build_messages(task: str, history: list, user_suffix: str = "", system: str = None) -> list:
     """把 agent.py 的 history 还原成 Ollama 原生格式的多轮消息(纯函数,方便单元测试)。
-    user_suffix:附加在用户问题后面的文字,例如 Qwen3 的软开关 " /no_think"。"""
-    messages = [{"role": "user", "content": task + user_suffix}]
+    user_suffix:附加在用户问题后面的文字,例如 Qwen3 的软开关 " /no_think"。
+    system:可选的系统提示词(路由 Agent 用它告诉模型今天的日期和工具使用规则)。"""
+    messages = [{"role": "system", "content": system}] if system else []
+    messages.append({"role": "user", "content": task + user_suffix})
     id_to_tool = {}
     for h in history:
         if h["type"] == "tool_call":
@@ -89,19 +91,22 @@ def parse_response(data: dict, step_index: int) -> dict:
 
 def make_ollama_decide_fn(model: str, think: bool, options: dict,
                           base_url: str = DEFAULT_BASE_URL, timeout: int = 600,
-                          keep_alive: str = "30m", user_suffix: str = ""):
+                          keep_alive: str = "30m", user_suffix: str = "",
+                          tools: list = None, system: str = None):
     """
     返回一个 decide_fn,签名和其他 provider 完全一样:(task, history) -> decision。
     options: 采样参数等,原样传给 Ollama(temperature、top_p、top_k、presence_penalty、
              seed、num_ctx、num_predict)。
     """
-    from tools import OPENAI_TOOL_SCHEMAS
+    if tools is None:                                  # 默认:原来的计算器 / 概念查询
+        from tools import OPENAI_TOOL_SCHEMAS
+        tools = OPENAI_TOOL_SCHEMAS
 
     def decide_fn(task: str, history: list) -> dict:
         body = {
             "model": model,
-            "messages": build_messages(task, history, user_suffix),
-            "tools": OPENAI_TOOL_SCHEMAS,
+            "messages": build_messages(task, history, user_suffix, system),
+            "tools": tools,
             "think": think,
             "stream": False,
             "options": options,

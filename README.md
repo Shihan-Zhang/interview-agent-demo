@@ -99,6 +99,7 @@ flowchart LR
 ```
 agent.py              Agent 循环:推理 → 工具调用 → 观察,直到最终回答或步数上限;"大脑"可插拔
 providers/            Ollama(本地,可开关思考、返回 prefill/decode 计时)与三个 OpenAI 兼容 API
+router/               路由 Agent 的三个工具(notes_search / jobs_query / web_search)、岗位表、搜索后端与回放;cli.py 日常入口
 rag/                  ingest.py 切分 · index.py 向量化与清单 · retrieve.py 三种检索 · text.py 中文分词
 eval/
   compare_local.py    本地模型 4 配置对比(每配置前卸载模型测显存基线,可断点续跑)
@@ -107,7 +108,7 @@ eval/
   rag/                检索评测集(按证据原文标注)与评测脚本
   datasets/           评测数据(来源、协议、抽样方式见 README)
   results/            定稿报告与事先预测
-tests/                36 项单元测试:测"评测工具本身"对不对(判分器、解析、切分、检索)
+tests/                43 项单元测试:测"评测工具本身"对不对(判分器、解析、切分、检索)
 ```
 
 ---
@@ -116,7 +117,7 @@ tests/                36 项单元测试:测"评测工具本身"对不对(判分
 
 ```bash
 pip install -r requirements.txt
-python -m pytest -q                                   # 36 passed
+python -m pytest -q                                   # 43 passed
 
 # 函数调用评测(需要 Ollama 和 qwen3:4b-instruct、qwen3.5:4b)
 python eval/fc/run_fc.py && python eval/fc/summarize_fc.py
@@ -128,6 +129,9 @@ python eval/compare_local.py && python eval/summarize_local.py
 python -m rag.ingest data/notes && python -m rag.index
 python -m rag.retrieve "McNemar 检验怎么算" --mode hybrid
 python eval/rag/eval_retrieval.py
+
+# 路由 Agent(笔记索引 + data/jobs/jobs_snapshot.json)
+python -m router.cli "下周有哪些岗位要面试?"
 ```
 
 用 API 模型跑 Agent 评测:设置 `SILICONFLOW_API_KEY` 后运行 `python eval/run_eval.py --mode real --provider siliconflow && python eval/score.py`。
@@ -139,7 +143,9 @@ python eval/rag/eval_retrieval.py
 - [ ] **RAG 生成阶段**:带引用回答、查不到就拒答,测编造率与误拒率
 - [ ] **重排消融**:交叉编码器重排对 Recall@1 的提升
 - [ ] **LLM-as-Judge**:人工标注校准(Cohen's κ),检查位置偏差与同源偏差,替换关键词判分
-- [ ] **路由 Agent**:笔记(RAG)/ 岗位表(SQL)/ 搜索三个工具;比较 workflow 与 agent 的成功率和成本
+- [x] **路由 Agent**:笔记(RAG)/ 岗位表(结构化查询)/ 搜索三个工具已接入 Agent 循环(`router/`)
+- [ ] **错误恢复评测**:复现公开基准(ToolMaze,显式/隐式 × 暂时/持续 4 类扰动),本地模型 vs API 大模型
+- [ ] 比较 workflow 与 agent 的成功率和成本
 - [ ] **扩大评测集**到约 480 题,加入中文工具调用(T-Eval);块大小实验改用固定 token 预算
 - [ ] **服务化**:FastAPI + Redis 任务队列 + Docker + CI,并发压测
 

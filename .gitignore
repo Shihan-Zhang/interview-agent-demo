@@ -10,3 +10,6 @@ eval/results/fc_*_report.md
 data/notes/
 rag/store/
 eval/results/rag_*_report.md
+
+# 岗位表快照(个人求职数据,从 Notion 导出)
+data/jobs/
