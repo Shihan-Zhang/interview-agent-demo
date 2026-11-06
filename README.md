@@ -1,6 +1,6 @@
 # 大模型与 Agent 评测平台
 
-[![tests](https://github.com/Shihan-Zhang/interview-agent-demo/actions/workflows/tests.yml/badge.svg)](https://github.com/Shihan-Zhang/interview-agent-demo/actions/workflows/tests.yml)
+[![tests](https://github.com/Shihan-Zhang/llm-agent-eval/actions/workflows/tests.yml/badge.svg)](https://github.com/Shihan-Zhang/llm-agent-eval/actions/workflows/tests.yml)
 
 对大模型和 Agent 做**有统计依据、可复现、能自查判分错误**的评测:Agent 工具故障恢复(复现 ToolMaze 论文)、
 函数调用(BFCL)、中文 RAG 检索。重点不是"跑出一个分数",而是回答三个问题:

@@ -20,7 +20,7 @@ New-Item -ItemType Directory -Force $AE, $Logs | Out-Null
 function Step($name) { Write-Host "`n===== $name =====" }
 function Lineage {
   # 数据血缘:两个仓库的提交、Ollama 版本、模型摘要、显卡状态
-  Write-Host "interview-agent-demo: $(git -C $Root rev-parse --short HEAD) ($(git -C $Root rev-parse --abbrev-ref HEAD))"
+  Write-Host "llm-agent-eval: $(git -C $Root rev-parse --short HEAD) ($(git -C $Root rev-parse --abbrev-ref HEAD))"
   Write-Host "ToolMaze:             $(git -C $TM rev-parse --short HEAD)"
   ollama --version
   ollama list | Select-String "qwen3i-8k"
